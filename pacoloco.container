@@ -1,0 +1,20 @@
+# Podman Quadlet https://man.archlinux.org/man/quadlet.5.en
+# Replaces pacoloco.service, can be combined with pacoloco.socket
+
+[Unit]
+Description=Pacoloco caching proxy server (container)
+Wants=network-online.target
+After=network-online.target pacoloco.socket
+
+[Container]
+Image=ghcr.io/anatol/pacoloco:latest
+
+Volume=/etc/pacoloco.yaml:/etc/pacoloco.yaml:ro
+Volume=pacoloco-cache:/var/cache/pacoloco
+
+# Required when not using socket activation
+#PublishPort=9129
+
+# Required for auto-starting. Cannot use systemctl enable with container units.
+#[Install]
+#WantedBy=multi-user.target
