@@ -27,6 +27,8 @@ You can think of pacoloco as a lazy Arch mirror.
 Install [pacoloco package](https://archlinux.org/packages/community/x86_64/pacoloco/) from the official Arch repository.
 Then start its systemd service: `# systemctl start pacoloco`.
 
+Pacoloco also supports systemd socket activation: `# systemctl start pacoloco.socket`. Note that `socket_activation: auto` may need to be added to a config from previous versions.
+
 ### Docker
 
 Pacoloco can be used with docker.
@@ -75,6 +77,37 @@ services:
 #    environment:
 #      - TZ=Europe/Berlin
 ```
+
+### Podman (Quadlet)
+
+An easy way to run the container on a system with [podman](https://podman.io)
+is dropping a `pacoloco.container` into `/etc/containers/systemd/`:
+
+```ini
+[Unit]
+Description=Pacoloco caching proxy server (container)
+Wants=network-online.target
+After=network-online.target pacoloco.socket
+
+[Container]
+Image=ghcr.io/anatol/pacoloco:latest
+
+Volume=/etc/pacoloco.yaml:/etc/pacoloco.yaml:ro
+Volume=pacoloco-cache:/var/cache/pacoloco
+
+# Required when not using socket activation
+#PublishPort=9129
+
+# Required for auto-starting without socket activation.
+# Container units canot currently be 'systemctl enable'd manually.
+#[Install]
+#WantedBy=multi-user.target
+```
+
+This can be combined with socket activation by also dropping [pacoloco.socket](pacoloco.socket) from
+this repo into `/etc/systemd/system/` and using it like any other socket unit.
+
+For more information see [quadlet(5)](https://man.archlinux.org/man/quadlet.5)
 
 ## Build from sources
 
