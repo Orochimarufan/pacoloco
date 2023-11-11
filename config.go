@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"os/user"
+	"strings"
 	"time"
 
 	"github.com/gorhill/cronexpr"
@@ -10,12 +12,63 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type SocketActivation int
+
+const (
+	ActivationOff SocketActivation = iota
+	ActivationMay
+	ActivationMust
+)
+
+func (a SocketActivation) String() string {
+	switch a {
+	case ActivationOff:
+		return "Off"
+	case ActivationMay:
+		return "May"
+	case ActivationMust:
+		return "Must"
+	default:
+		return "Invalid"
+	}
+}
+
+func (a SocketActivation) MarshalText() ([]byte, error) {
+	switch a {
+	case ActivationOff:
+		return []byte("off"), nil
+	case ActivationMay:
+		return []byte("may"), nil
+	case ActivationMust:
+		return []byte("must"), nil
+	default:
+		return nil, errors.New("Invalid value")
+	}
+}
+
+func (a *SocketActivation) UnmarshalText(text []byte) error {
+	switch strings.ToLower(string(text)) {
+	case "off", "false":
+		*a = ActivationOff
+		return nil
+	case "may", "auto":
+		*a = ActivationMay
+		return nil
+	case "must", "true":
+		*a = ActivationMust
+		return nil
+	default:
+		return errors.New("Ivalid SocketActivation value")
+	}
+}
+
 const (
 	DefaultPort          = 9129
 	DefaultCacheDir      = "/var/cache/pacoloco"
 	DefaultTTLUnaccessed = 30
 	DefaultTTLUnupdated  = 200
 	DefaultDBName        = "sqlite-pkg-cache.db"
+	DefaultActivation    = ActivationOff
 )
 
 type Repo struct {
@@ -33,24 +86,26 @@ type RefreshPeriod struct {
 }
 
 type Config struct {
-	CacheDir        string           `yaml:"cache_dir"`
-	Port            int              `yaml:"port"`
-	Repos           map[string]*Repo `yaml:"repos,omitempty"`
-	PurgeFilesAfter int              `yaml:"purge_files_after"`
-	DownloadTimeout int              `yaml:"download_timeout"`
-	Prefetch        *RefreshPeriod   `yaml:"prefetch"`
-	HttpProxy       string           `yaml:"http_proxy"`
-	UserAgent       string           `yaml:"user_agent"`
-	LogTimestamp    bool             `yaml:"set_timestamp_to_logs"`
+	CacheDir         string           `yaml:"cache_dir"`
+	Port             int              `yaml:"port"`
+	Repos            map[string]*Repo `yaml:"repos,omitempty"`
+	PurgeFilesAfter  int              `yaml:"purge_files_after"`
+	DownloadTimeout  int              `yaml:"download_timeout"`
+	Prefetch         *RefreshPeriod   `yaml:"prefetch"`
+	HttpProxy        string           `yaml:"http_proxy"`
+	UserAgent        string           `yaml:"user_agent"`
+	LogTimestamp     bool             `yaml:"set_timestamp_to_logs"`
+	SocketActivation SocketActivation `yaml:"socket_activation"`
 }
 
 var config *Config
 
 func parseConfig(raw []byte) *Config {
 	result := Config{
-		CacheDir: DefaultCacheDir,
-		Port:     DefaultPort,
-		Prefetch: nil,
+		CacheDir:         DefaultCacheDir,
+		Port:             DefaultPort,
+		Prefetch:         nil,
+		SocketActivation: DefaultActivation,
 	}
 
 	if err := yaml.Unmarshal(raw, &result); err != nil {
@@ -92,8 +147,8 @@ func parseConfig(raw []byte) *Config {
 		}
 		log.Fatalf("directory %v does not exist or isn't writable for user %v", result.CacheDir, u.Username)
 	}
-	// validate Prefetch config
 
+	// validate Prefetch config
 	if result.Prefetch != nil {
 
 		// set default values
@@ -114,5 +169,6 @@ func parseConfig(raw []byte) *Config {
 			log.Fatal("Invalid cron string (if you don't know how to compose them, there are many online utilities for doing so). Please check https://github.com/gorhill/cronexpr#implementation for documentation.")
 		}
 	}
+
 	return &result
 }

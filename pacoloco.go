@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/coreos/go-systemd/v22/activation"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -137,12 +138,35 @@ func main() {
 		config.UserAgent = "Pacoloco/1.2"
 	}
 
-	listenAddr := fmt.Sprintf(":%d", config.Port)
-	log.Println("Starting server at port", config.Port)
 	// The request path looks like '/repo/$reponame/$pathatmirror'
 	http.HandleFunc("/repo/", pacolocoHandler)
 	// Expose prometheus metrics
 	http.Handle("/metrics", promhttp.Handler())
+
+	// Check for Socket Activation
+	if config.SocketActivation != ActivationOff {
+		listeners, err := activation.Listeners()
+		if err != nil {
+			log.Fatal("Couldn't retrieve socket activation fds:", err)
+		} else if len(listeners) > 0 {
+			if len(listeners) > 1 {
+				log.Fatalf("Too many sockets passed for activation. Expected 1 but got %d", len(listeners))
+			}
+			listener := listeners[0]
+			log.Println("Starting server on socket from activation:", listener.Addr())
+			err = http.Serve(listener, nil)
+			if err != nil {
+				log.Fatal(err)
+			}
+			return
+		} else if config.SocketActivation == ActivationMust {
+			log.Fatal("No sockets passed for activation, but activation is required in config")
+		}
+	}
+
+	// Create our own socket
+	listenAddr := fmt.Sprintf(":%d", config.Port)
+	log.Println("Starting server at port", config.Port)
 	log.Fatal(http.ListenAndServe(listenAddr, nil))
 }
 

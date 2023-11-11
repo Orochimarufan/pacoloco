@@ -1,0 +1,9 @@
+[Unit]
+Description=Pacoloco socket
+
+[Socket]
+ListenStream=9129
+BindIPv6Only=both
+
+[Install]
+WantedBy=sockets.target
