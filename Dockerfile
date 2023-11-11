@@ -1,4 +1,4 @@
-FROM golang:alpine3.18 AS common
+FROM docker.io/library/golang:alpine3.18 AS common
 
 RUN apk add gcc libc-dev
 
@@ -14,7 +14,7 @@ RUN go test -ldflags="-s -w"
 FROM common AS build
 RUN go build -ldflags="-s -w"
 
-FROM alpine:3.18 AS executable
+FROM docker.io/library/alpine:3.18 AS executable
 
 RUN apk add tzdata
 
